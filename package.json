@@ -1,0 +1,30 @@
+{
+  "name": "blogcast",
+  "version": "1.0.0",
+  "description": "BlogCast MCP — One post. Every platform. Powered by Notion + Claude.",
+  "private": true,
+  "workspaces": [
+    "mcp",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\" \"npm run dev --workspace=mcp\"",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:mcp": "npm run dev --workspace=mcp",
+    "build": "npm run build --workspace=mcp && npm run build --workspace=server && npm run build --workspace=client",
+    "build:mcp": "npm run build --workspace=mcp",
+    "build:server": "npm run build --workspace=server",
+    "build:client": "npm run build --workspace=client",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "rm -rf mcp/dist server/dist client/dist node_modules mcp/node_modules server/node_modules client/node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

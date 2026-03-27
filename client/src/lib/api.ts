@@ -1,0 +1,103 @@
+import axios from "axios";
+import type { Post, AnalyticsEntry, PlatformInfo, PublishResult } from "./types";
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:3001",
+  timeout: 60_000,
+});
+
+// ── Posts ─────────────────────────────────────────────────────────────────────
+
+export async function getPosts(params?: {
+  status?: string;
+  limit?: number;
+}): Promise<{ posts: Post[]; total: number }> {
+  const res = await api.get("/api/posts", { params });
+  return res.data;
+}
+
+export async function getPost(id: string): Promise<Post> {
+  const res = await api.get(`/api/posts/${id}`);
+  return res.data;
+}
+
+export async function getPostStatus(
+  id: string
+): Promise<{ postId: string; analytics: AnalyticsEntry[] }> {
+  const res = await api.get(`/api/posts/${id}/status`);
+  return res.data;
+}
+
+// ── Publish ───────────────────────────────────────────────────────────────────
+
+export async function publishPost(
+  postId: string,
+  platforms: string[]
+): Promise<{ results: PublishResult[] }> {
+  // First fetch full post from backend, then publish
+  const post = await getPost(postId);
+
+  // We use the MCP-style endpoint via backend
+  const res = await api.post("/api/publish", {
+    post: {
+      title: post.title,
+      // Content markdown must be fetched from Notion — the backend will handle it
+      // For the UI flow, we trigger via a special endpoint
+      content_markdown: `# ${post.title}\n\n*(Content loaded from Notion)*`,
+      tags: post.publishTo,
+      canonical_url: null,
+      cover_image_url: null,
+      excerpt: post.excerpt,
+      slug: post.slug,
+    },
+    platforms,
+    notion_page_id: postId,
+  });
+  return res.data;
+}
+
+// ── Platforms ─────────────────────────────────────────────────────────────────
+
+export async function getPlatforms(): Promise<PlatformInfo[]> {
+  const res = await api.get("/api/platforms");
+  return res.data;
+}
+
+export async function savePlatformCredentials(
+  platform: string,
+  credentials: Record<string, string>
+): Promise<void> {
+  await api.post(`/api/platforms/${platform}/credentials`, { credentials });
+}
+
+export async function removePlatformCredentials(platform: string): Promise<void> {
+  await api.delete(`/api/platforms/${platform}/credentials`);
+}
+
+export async function testPlatformConnection(
+  platform: string
+): Promise<{ success: boolean; message: string }> {
+  const res = await api.post(`/api/platforms/${platform}/test`);
+  return res.data;
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export async function syncAnalytics(postIds: string[]): Promise<{
+  synced: number;
+  errors: Array<{ postId: string; platform: string; error: string }>;
+}> {
+  const res = await api.post("/api/analytics/sync", { post_ids: postIds });
+  return res.data;
+}
+
+// ── Health ────────────────────────────────────────────────────────────────────
+
+export async function getHealth(): Promise<{
+  status: string;
+  version: string;
+  services: { notion: boolean; scheduler: boolean };
+}> {
+  const res = await api.get("/health");
+  return res.data;
+}
