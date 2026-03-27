@@ -3,6 +3,10 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+      },
       colors: {
         brand: {
           50: "#f0f9ff",
@@ -12,6 +16,9 @@ export default {
           700: "#0369a1",
           900: "#0c4a6e",
         },
+      },
+      letterSpacing: {
+        tight: "-0.02em",
       },
     },
   },

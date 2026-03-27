@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authService } from "../services/authService.js";
 import { testDevtoConnection } from "../publishers/devto.js";
 import { testHashnodeConnection } from "../publishers/hashnode.js";
+import { testMediumConnection } from "../publishers/medium.js";
 import { logger } from "../utils/logger.js";
 
 export const platformsRouter = Router();
@@ -21,6 +22,7 @@ const TESTERS: Record<
 > = {
   devto: testDevtoConnection,
   hashnode: testHashnodeConnection,
+  medium: testMediumConnection,
 };
 
 // GET /api/platforms — list all platforms and their config status
@@ -31,7 +33,7 @@ platformsRouter.get("/", (_req, res) => {
     platform: p,
     configured: configured.includes(p),
     connected: false, // set to true after a successful test
-    v1Supported: ["devto", "hashnode"].includes(p),
+    v1Supported: ["devto", "hashnode", "medium"].includes(p),
   }));
 
   res.json(platforms);

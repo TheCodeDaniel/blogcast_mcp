@@ -130,7 +130,7 @@ BlogCast MCP Server (stdio, Claude integration)
         │ HTTP
         ▼
 Express Backend (localhost:3001)
-  ├── Publishers: Dev.to, Hashnode
+  ├── Publishers: Dev.to, Hashnode, Medium (draft)
   ├── Image service (download → cache → re-upload)
   ├── Format service (Markdown ↔ HTML)
   ├── Auth vault (encrypted local credentials)
@@ -197,20 +197,36 @@ Notion CDN URLs expire after ~1 hour. BlogCast handles this transparently:
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for the full list.
+Almost nothing needs to go in `.env`. All Notion credentials, platform API keys,
+and scheduler settings are configured through the **Settings page** (`localhost:5173/settings`)
+and stored encrypted on your local machine.
+
+The only optional env vars are:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3001` | Backend server port |
+| `STORAGE_PATH` | `./storage` | Local storage for images, queue, logs |
+| `LOG_LEVEL` | `info` | Logging verbosity |
+| `BACKEND_URL` | `http://localhost:3001` | MCP server → backend URL |
+| `NOTION_API_KEY` | _(from Settings)_ | CI/Docker override |
+| `NOTION_POSTS_DB_ID` | _(from Settings)_ | CI/Docker override |
+| `NOTION_ANALYTICS_DB_ID` | _(from Settings)_ | CI/Docker override |
+
+See [`.env.example`](.env.example) for the template.
 
 ---
 
-## v1.0 Supported Platforms
+## Supported Platforms
 
-| Platform | Status |
-|---|---|
-| Dev.to | ✅ Full support |
-| Hashnode | ✅ Full support |
-| Medium | 🔜 v1.1 |
-| LinkedIn | 🔜 v1.1 |
-| Ghost | 🔜 v2.0 |
-| WordPress | 🔜 v2.0 |
+| Platform | Status | Notes |
+|---|---|---|
+| Dev.to | ✅ Full support | |
+| Hashnode | ✅ Full support | |
+| Medium | ✅ Draft support | Medium API only allows draft publishing — publish manually from your Medium dashboard |
+| LinkedIn | 🔜 v1.1 | |
+| Ghost | 🔜 v2.0 | |
+| WordPress | 🔜 v2.0 | |
 
 ---
 

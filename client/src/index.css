@@ -5,6 +5,12 @@
 @layer base {
   body {
     @apply text-gray-900 antialiased;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
   }
 
   * {

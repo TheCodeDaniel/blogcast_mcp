@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { publishToDevto } from "../publishers/devto.js";
 import { publishToHashnode } from "../publishers/hashnode.js";
+import { publishToMedium } from "../publishers/medium.js";
 import { logger } from "../utils/logger.js";
 import type { PublishPayload, PublishResult } from "../publishers/types.js";
 
@@ -11,6 +12,7 @@ type Publisher = (payload: PublishPayload) => Promise<PublishResult>;
 const PUBLISHERS: Record<string, Publisher> = {
   devto: publishToDevto,
   hashnode: publishToHashnode,
+  medium: publishToMedium,
 };
 
 // POST /api/publish

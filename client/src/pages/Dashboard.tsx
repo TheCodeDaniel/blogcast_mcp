@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Clock,
   TrendingUp,
+  ExternalLink,
 } from "lucide-react";
 import { getPosts, getPlatforms, getHealth } from "../lib/api";
 import { AnalyticsChart } from "../components/AnalyticsChart";
@@ -161,21 +162,53 @@ export function Dashboard() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent activity */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
           <h2 className="font-semibold text-gray-900 mb-4">Recent posts</h2>
           {recentPosts.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No posts yet.{" "}
+            <div className="flex-1 space-y-4">
+              <p className="text-sm text-gray-500">
+                No posts yet. Here's how to create your first one in Notion:
+              </p>
+              <ol className="space-y-3 text-sm text-gray-600">
+                <li className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs flex items-center justify-center font-semibold">1</span>
+                  <span>
+                    Open your{" "}
+                    <a href="https://www.notion.so" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline font-medium">
+                      Notion workspace
+                    </a>{" "}
+                    and find your <strong>BlogCast Posts</strong> database
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs flex items-center justify-center font-semibold">2</span>
+                  <span>
+                    Click <strong>+ New</strong> to create a page — write your post content inside it
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs flex items-center justify-center font-semibold">3</span>
+                  <span>
+                    Fill in the page properties: <strong>Title</strong>, <strong>Tags</strong>, <strong>Publish To</strong> (devto, hashnode, medium), and <strong>Excerpt</strong>
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs flex items-center justify-center font-semibold">4</span>
+                  <span>
+                    Set <strong>Status</strong> to <em>Draft</em> — it'll appear here automatically
+                  </span>
+                </li>
+              </ol>
               <a
-                href="https://www.notion.so"
+                href="https://www.notion.so/templates"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-600 hover:underline"
+                className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline font-medium mt-2"
               >
-                Create one in Notion
-              </a>{" "}
-              and it'll appear here.
-            </p>
+                <ExternalLink size={13} />
+                Open Notion
+              </a>
+            </div>
           ) : (
             <div className="space-y-3">
               {recentPosts.map((post) => (
@@ -200,6 +233,17 @@ export function Dashboard() {
                   </span>
                 </Link>
               ))}
+              <div className="pt-3 border-t border-gray-100">
+                <a
+                  href="https://www.notion.so"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-gray-400 hover:text-brand-600 flex items-center gap-1"
+                >
+                  <ExternalLink size={11} />
+                  Write a new post in Notion
+                </a>
+              </div>
             </div>
           )}
         </div>

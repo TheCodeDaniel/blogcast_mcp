@@ -8,7 +8,7 @@ import type { Post, PublishResult } from "../lib/types";
 const PLATFORMS = [
   { id: "devto", label: "Dev.to", v1: true },
   { id: "hashnode", label: "Hashnode", v1: true },
-  { id: "medium", label: "Medium", v1: false },
+  { id: "medium", label: "Medium", v1: true, note: "Publishes as draft — you publish manually from Medium" },
   { id: "linkedin", label: "LinkedIn", v1: false },
   { id: "ghost", label: "Ghost", v1: false },
   { id: "wordpress", label: "WordPress", v1: false },
@@ -134,14 +134,15 @@ export function Publish() {
         <h2 className="font-semibold text-gray-900">2. Choose platforms</h2>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {PLATFORMS.map(({ id, label, v1 }) => {
+          {PLATFORMS.map(({ id, label, v1, note }) => {
             const checked = selectedPlatforms.includes(id);
             return (
               <button
                 key={id}
                 onClick={() => v1 && togglePlatform(id)}
                 disabled={!v1}
-                className={`flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
+                title={note}
+                className={`flex flex-col gap-1 px-4 py-3 rounded-lg border text-sm font-medium transition-all text-left ${
                   !v1
                     ? "opacity-40 cursor-not-allowed border-gray-200 text-gray-400"
                     : checked
@@ -149,22 +150,27 @@ export function Publish() {
                     : "border-gray-200 text-gray-700 hover:border-gray-300"
                 }`}
               >
-                <div
-                  className={`w-4 h-4 rounded border flex items-center justify-center ${
-                    checked
-                      ? "bg-brand-500 border-brand-500"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {checked && (
-                    <svg viewBox="0 0 12 10" className="w-3 h-3 fill-white">
-                      <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="1.5" fill="none" />
-                    </svg>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      checked ? "bg-brand-500 border-brand-500" : "border-gray-300"
+                    }`}
+                  >
+                    {checked && (
+                      <svg viewBox="0 0 12 10" className="w-3 h-3 fill-white">
+                        <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="1.5" fill="none" />
+                      </svg>
+                    )}
+                  </span>
+                  {label}
+                  {!v1 && (
+                    <span className="text-xs text-gray-400 ml-auto">v1.1</span>
                   )}
-                </div>
-                {label}
-                {!v1 && (
-                  <span className="text-xs text-gray-400 ml-auto">v1.1</span>
+                </span>
+                {note && v1 && (
+                  <span className="text-xs text-amber-600 font-normal leading-tight pl-6">
+                    Draft only
+                  </span>
                 )}
               </button>
             );
@@ -173,7 +179,7 @@ export function Publish() {
 
         <div className="flex items-start gap-2 text-xs text-gray-400">
           <Info size={12} className="shrink-0 mt-0.5" />
-          Medium, LinkedIn, Ghost, and WordPress support is coming in v1.1.
+          LinkedIn, Ghost, and WordPress support is coming in v1.1.
         </div>
       </div>
 

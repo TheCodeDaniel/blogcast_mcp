@@ -15,7 +15,7 @@ export const publishPostSchema = z.object({
     )
     .optional()
     .describe(
-      "Override which platforms to publish to. Defaults to the 'Publish To' field on the Notion page."
+      "Override which platforms to publish to. Defaults to the 'Publish To' field on the Notion page. Note: medium publishes as a draft — you must publish manually from your Medium dashboard."
     ),
   dry_run: z
     .boolean()
