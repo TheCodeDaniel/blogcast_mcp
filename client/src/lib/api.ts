@@ -6,6 +6,37 @@ const api = axios.create({
   timeout: 60_000,
 });
 
+// ── Config ────────────────────────────────────────────────────────────────────
+
+export interface AppConfigResponse {
+  notion: {
+    apiKey: string;        // masked if set
+    postsDbId: string;
+    analyticsDbId: string;
+    fromEnv: { apiKey: boolean; postsDbId: boolean; analyticsDbId: boolean };
+  };
+  scheduler: { enabled: boolean; pollIntervalMinutes: number };
+  server: { storagePathOverride: string };
+  configured: boolean;
+}
+
+export async function getConfig(): Promise<AppConfigResponse> {
+  const res = await api.get("/api/config");
+  return res.data;
+}
+
+export async function saveConfig(config: {
+  notion?: { apiKey?: string; postsDbId?: string; analyticsDbId?: string };
+  scheduler?: { enabled?: boolean; pollIntervalMinutes?: number };
+  server?: { storagePathOverride?: string };
+}): Promise<void> {
+  await api.post("/api/config", config);
+}
+
+export async function clearNotionConfig(): Promise<void> {
+  await api.delete("/api/config/notion");
+}
+
 // ── Posts ─────────────────────────────────────────────────────────────────────
 
 export async function getPosts(params?: {
@@ -34,17 +65,13 @@ export async function publishPost(
   postId: string,
   platforms: string[]
 ): Promise<{ results: PublishResult[] }> {
-  // First fetch full post from backend, then publish
   const post = await getPost(postId);
 
-  // We use the MCP-style endpoint via backend
   const res = await api.post("/api/publish", {
     post: {
       title: post.title,
-      // Content markdown must be fetched from Notion — the backend will handle it
-      // For the UI flow, we trigger via a special endpoint
       content_markdown: `# ${post.title}\n\n*(Content loaded from Notion)*`,
-      tags: post.publishTo,
+      tags: post.tags,
       canonical_url: null,
       cover_image_url: null,
       excerpt: post.excerpt,

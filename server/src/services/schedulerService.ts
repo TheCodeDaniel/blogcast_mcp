@@ -2,7 +2,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { publishToDevto } from "../publishers/devto.js";
 import { publishToHashnode } from "../publishers/hashnode.js";
-import { imageService } from "./imageService.js";
+import { configService } from "./configService.js";
 import { logger } from "../utils/logger.js";
 import type { PublishPayload, PublishResult } from "../publishers/types.js";
 
@@ -39,13 +39,13 @@ export function startScheduler(
   intervalMinutes: number,
   publishFn: (notionPageId: string, platforms: string[]) => Promise<void>
 ) {
-  if (!process.env.NOTION_API_KEY || !process.env.NOTION_POSTS_DB_ID) {
-    logger.warn("Scheduler disabled: missing Notion env vars");
+  if (!configService.isNotionConfigured()) {
+    logger.warn("Scheduler disabled: Notion not configured. Use the Settings page to add credentials.");
     return;
   }
 
-  const notion = new Client({ auth: process.env.NOTION_API_KEY });
-  const dbId = process.env.NOTION_POSTS_DB_ID;
+  const notion = new Client({ auth: configService.getNotionApiKey() });
+  const dbId = configService.getNotionPostsDbId();
 
   const intervalMs = intervalMinutes * 60 * 1000;
 

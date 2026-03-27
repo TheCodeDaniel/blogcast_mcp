@@ -1,12 +1,27 @@
 import { Router } from "express";
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
+import { configService } from "../services/configService.js";
 import { logger } from "../utils/logger.js";
 
 export const postsRouter = Router();
 
 function getNotionClient() {
-  return new Client({ auth: process.env.NOTION_API_KEY! });
+  const apiKey = configService.getNotionApiKey();
+  if (!apiKey) throw new Error("Notion API key not configured. Go to Settings to add it.");
+  return new Client({ auth: apiKey });
+}
+
+function getPostsDbId() {
+  const id = configService.getNotionPostsDbId();
+  if (!id) throw new Error("Notion Posts DB ID not configured. Go to Settings to add it.");
+  return id;
+}
+
+function getAnalyticsDbId() {
+  const id = configService.getNotionAnalyticsDbId();
+  if (!id) throw new Error("Notion Analytics DB ID not configured. Go to Settings to add it.");
+  return id;
 }
 
 function mapPage(page: PageObjectResponse) {
@@ -46,7 +61,7 @@ postsRouter.get("/", async (req, res) => {
       : undefined;
 
     const response = await notion.databases.query({
-      database_id: process.env.NOTION_POSTS_DB_ID!,
+      database_id: getPostsDbId(),
       filter: filter as any,
       page_size: Math.min(parseInt(String(limit)), 50),
       sorts: [{ timestamp: "last_edited_time", direction: "descending" }],
@@ -87,7 +102,7 @@ postsRouter.get("/:id/status", async (req, res) => {
     const notion = getNotionClient();
 
     const response = await notion.databases.query({
-      database_id: process.env.NOTION_ANALYTICS_DB_ID!,
+      database_id: getAnalyticsDbId(),
       filter: {
         property: "Post",
         relation: { contains: req.params.id },

@@ -77,9 +77,6 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
       "command": "node",
       "args": ["/absolute/path/to/blogcast/mcp/dist/index.js"],
       "env": {
-        "NOTION_API_KEY": "your_key",
-        "NOTION_POSTS_DB_ID": "your_posts_db_id",
-        "NOTION_ANALYTICS_DB_ID": "your_analytics_db_id",
         "BACKEND_URL": "http://localhost:3001"
       }
     }

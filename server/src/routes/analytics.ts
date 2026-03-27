@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { syncDevtoAnalytics } from "../publishers/devto.js";
 import { syncHashnodeAnalytics } from "../publishers/hashnode.js";
+import { configService } from "../services/configService.js";
 import { logger } from "../utils/logger.js";
 
 export const analyticsRouter = Router();
@@ -27,7 +28,14 @@ analyticsRouter.post("/sync", async (req, res) => {
     return;
   }
 
-  const notion = new Client({ auth: process.env.NOTION_API_KEY! });
+  const apiKey = configService.getNotionApiKey();
+  const analyticsDbId = configService.getNotionAnalyticsDbId();
+  if (!apiKey || !analyticsDbId) {
+    res.status(400).json({ error: "Notion not configured. Go to Settings to add your credentials." });
+    return;
+  }
+
+  const notion = new Client({ auth: apiKey });
   let synced = 0;
   const errors: Array<{ postId: string; platform: string; error: string }> = [];
 
@@ -35,7 +43,7 @@ analyticsRouter.post("/sync", async (req, res) => {
     try {
       // Get analytics entries for this post
       const response = await notion.databases.query({
-        database_id: process.env.NOTION_ANALYTICS_DB_ID!,
+        database_id: analyticsDbId,
         filter: {
           property: "Post",
           relation: { contains: postId },

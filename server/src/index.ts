@@ -11,15 +11,16 @@ import { publishRouter } from "./routes/publish.js";
 import { platformsRouter } from "./routes/platforms.js";
 import { imagesRouter } from "./routes/images.js";
 import { analyticsRouter } from "./routes/analytics.js";
+import { configRouter } from "./routes/config.js";
 import { startScheduler } from "./services/schedulerService.js";
+import { configService } from "./services/configService.js";
 import { publishToDevto } from "./publishers/devto.js";
 import { publishToHashnode } from "./publishers/hashnode.js";
-import { imageService } from "./services/imageService.js";
 import { logger } from "./utils/logger.js";
 import type { PublishPayload } from "./publishers/types.js";
 
 // ── Storage directories ───────────────────────────────────────────────────────
-const storagePath = process.env.STORAGE_PATH ?? "./storage";
+const storagePath = configService.get().server.storagePathOverride || "./storage";
 ["images", "queue", "logs"].forEach((dir) => {
   const full = path.join(storagePath, dir);
   if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
@@ -40,6 +41,7 @@ app.use(
 );
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/api/config", configRouter);
 app.use("/api/posts", postsRouter);
 app.use("/api/publish", publishRouter);
 app.use("/api/platforms", platformsRouter);
@@ -48,23 +50,24 @@ app.use("/api/analytics", analyticsRouter);
 
 // Health check
 app.get("/health", (_req, res) => {
+  const cfg = configService.get();
   res.json({
     status: "ok",
     version: "1.0.0",
     services: {
-      notion: !!process.env.NOTION_API_KEY,
-      scheduler:
-        process.env.SCHEDULER_ENABLED === "true" ||
-        process.env.SCHEDULER_ENABLED === undefined,
+      notion: configService.isNotionConfigured(),
+      scheduler: cfg.scheduler.enabled,
     },
   });
 });
 
 // ── Scheduler publish function ────────────────────────────────────────────────
 async function schedulerPublish(notionPageId: string, platforms: string[]) {
-  if (!process.env.NOTION_API_KEY) throw new Error("NOTION_API_KEY not set");
+  if (!configService.isNotionConfigured()) {
+    throw new Error("Notion not configured. Go to Settings to add your credentials.");
+  }
 
-  const notion = new Client({ auth: process.env.NOTION_API_KEY });
+  const notion = new Client({ auth: configService.getNotionApiKey() });
   const n2m = new NotionToMarkdown({ notionClient: notion });
 
   const page = await notion.pages.retrieve({ page_id: notionPageId });
@@ -104,9 +107,10 @@ async function schedulerPublish(notionPageId: string, platforms: string[]) {
     const result = await publisher(payload);
 
     // Write result to Notion Analytics DB
-    if (process.env.NOTION_ANALYTICS_DB_ID) {
+    const analyticsDbId = configService.getNotionAnalyticsDbId();
+    if (analyticsDbId) {
       await notion.pages.create({
-        parent: { database_id: process.env.NOTION_ANALYTICS_DB_ID },
+        parent: { database_id: analyticsDbId },
         properties: {
           Name: { title: [{ text: { content: platform } }] },
           Post: { relation: [{ id: notionPageId }] },
@@ -129,19 +133,13 @@ async function schedulerPublish(notionPageId: string, platforms: string[]) {
 app.listen(PORT, () => {
   logger.info(`BlogCast server running on http://localhost:${PORT}`);
 
-  // Start scheduler if enabled
-  const schedulerEnabled =
-    process.env.SCHEDULER_ENABLED !== "false";
-  const pollInterval = parseInt(
-    process.env.SCHEDULER_POLL_INTERVAL_MINUTES ?? "5",
-    10
-  );
-
-  if (schedulerEnabled && process.env.NOTION_API_KEY) {
-    startScheduler(pollInterval, schedulerPublish);
-  } else if (!process.env.NOTION_API_KEY) {
+  // Start scheduler if enabled and Notion is configured
+  const cfg = configService.get();
+  if (cfg.scheduler.enabled && configService.isNotionConfigured()) {
+    startScheduler(cfg.scheduler.pollIntervalMinutes, schedulerPublish);
+  } else if (!configService.isNotionConfigured()) {
     logger.warn(
-      "Scheduler disabled: NOTION_API_KEY not set. Set it in .env to enable scheduling."
+      "Scheduler disabled: Notion not configured. Open the dashboard Settings page to add your credentials."
     );
   }
 });

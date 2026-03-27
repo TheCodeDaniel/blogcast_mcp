@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import axios from "axios";
 import type {
   PageObjectResponse,
   PartialPageObjectResponse,
@@ -18,20 +19,55 @@ export class NotionClient {
   private postsDbId: string;
   private analyticsDbId: string;
 
-  constructor() {
-    const apiKey = process.env.NOTION_API_KEY;
-    const postsDbId = process.env.NOTION_POSTS_DB_ID;
-    const analyticsDbId = process.env.NOTION_ANALYTICS_DB_ID;
-
+  constructor(apiKey: string, postsDbId: string, analyticsDbId: string) {
     if (!apiKey || !postsDbId || !analyticsDbId) {
       throw new Error(
-        "Missing required environment variables: NOTION_API_KEY, NOTION_POSTS_DB_ID, NOTION_ANALYTICS_DB_ID"
+        "Notion credentials not configured. Open the BlogCast dashboard Settings page to add them."
       );
     }
 
     this.client = new Client({ auth: apiKey });
     this.postsDbId = postsDbId;
     this.analyticsDbId = analyticsDbId;
+  }
+
+  /**
+   * Factory: resolves credentials from the backend config API (which reads
+   * from the local encrypted vault), falling back to env vars.
+   */
+  static async create(): Promise<NotionClient> {
+    // Try env vars first (fast path for CLI/CI usage)
+    const envApiKey = process.env.NOTION_API_KEY;
+    const envPostsDbId = process.env.NOTION_POSTS_DB_ID;
+    const envAnalyticsDbId = process.env.NOTION_ANALYTICS_DB_ID;
+
+    if (envApiKey && envPostsDbId && envAnalyticsDbId) {
+      return new NotionClient(envApiKey, envPostsDbId, envAnalyticsDbId);
+    }
+
+    // Fall back to backend config vault
+    const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3001";
+    try {
+      const res = await axios.get<{
+        notion: { apiKey: string; postsDbId: string; analyticsDbId: string };
+        configured: boolean;
+      }>(`${backendUrl}/api/config/status-full`, { timeout: 5_000 });
+
+      const { apiKey, postsDbId, analyticsDbId } = res.data.notion;
+      if (!apiKey || !postsDbId || !analyticsDbId) {
+        throw new Error(
+          "Notion not configured. Open the BlogCast dashboard (localhost:5173) → Settings to add your credentials."
+        );
+      }
+      return new NotionClient(apiKey, postsDbId, analyticsDbId);
+    } catch (err: any) {
+      if (err.code === "ECONNREFUSED") {
+        throw new Error(
+          `BlogCast backend not running at ${backendUrl}. Start it with: npm run dev:server`
+        );
+      }
+      throw err;
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import axios from "axios";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -158,13 +159,46 @@ function zodFieldToJsonSchema(field: z.ZodTypeAny, key: string): object {
   return { type: "string", ...base };
 }
 
+// ── Lazy client resolution ────────────────────────────────────────────────────
+// Credentials are resolved on the first tool call, not at startup.
+// This prevents a crash when the MCP server starts before the backend.
+
+let _notion: NotionClient | null = null;
+let _parser: NotionParser | null = null;
+
+async function getClients(): Promise<{ notion: NotionClient; parser: NotionParser }> {
+  if (_notion && _parser) return { notion: _notion, parser: _parser };
+  // Reset on failure so a subsequent call after the user configures Settings will retry
+  try {
+
+  _notion = await NotionClient.create();
+
+  // Resolve the raw API key for the Notion SDK (used by notion-to-md)
+  const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3001";
+  const apiKey =
+    process.env.NOTION_API_KEY ||
+    (await axios
+      .get<{ notion: { apiKey: string } }>(`${backendUrl}/api/config/status-full`, {
+        timeout: 5_000,
+      })
+      .then((r) => r.data.notion.apiKey)
+      .catch(() => ""));
+
+  const rawNotionClient = new Client({ auth: apiKey });
+  _parser = new NotionParser(rawNotionClient);
+
+  return { notion: _notion, parser: _parser };
+  } catch (err) {
+    // Don't cache a failed state — let the next tool call retry
+    _notion = null;
+    _parser = null;
+    throw err;
+  }
+}
+
 // ── Server setup ──────────────────────────────────────────────────────────────
 
 async function main() {
-  const notion = new NotionClient();
-  const rawNotionClient = new Client({ auth: process.env.NOTION_API_KEY! });
-  const parser = new NotionParser(rawNotionClient);
-
   const server = new Server(
     {
       name: "blogcast",
@@ -177,17 +211,27 @@ async function main() {
     }
   );
 
-  // List tools
+  // List tools — always works, no backend needed
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOLS,
   }));
 
-  // Handle tool calls
+  // Handle tool calls — resolve clients lazily on first use
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
       let result: string;
+
+      // manage_platforms doesn't need Notion at all
+      if (name === "manage_platforms") {
+        const input = managePlatformsSchema.parse(args);
+        result = await managePlatforms(input);
+        return { content: [{ type: "text", text: result }] };
+      }
+
+      // All other tools need Notion — resolve lazily
+      const { notion, parser } = await getClients();
 
       switch (name) {
         case "list_drafts": {
@@ -218,11 +262,6 @@ async function main() {
         case "sync_analytics": {
           const input = syncAnalyticsSchema.parse(args);
           result = await syncAnalytics(input, notion);
-          break;
-        }
-        case "manage_platforms": {
-          const input = managePlatformsSchema.parse(args);
-          result = await managePlatforms(input);
           break;
         }
         default:
