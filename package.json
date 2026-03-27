@@ -21,7 +21,8 @@
     "clean": "rm -rf mcp/dist server/dist client/dist node_modules mcp/node_modules server/node_modules client/node_modules"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "esbuild": "^0.27.4"
   },
   "engines": {
     "node": ">=20.0.0",

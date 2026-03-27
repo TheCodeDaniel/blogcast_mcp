@@ -14,6 +14,9 @@ export interface AppConfig {
   server: {
     storagePathOverride: string;
   };
+  anthropic: {
+    apiKey: string;
+  };
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -28,6 +31,9 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   server: {
     storagePathOverride: "",
+  },
+  anthropic: {
+    apiKey: "",
   },
 };
 
@@ -74,6 +80,12 @@ export const configService = {
           process.env.STORAGE_PATH ||
           "./storage",
       },
+      anthropic: {
+        apiKey:
+          (saved.anthropic?.apiKey) ||
+          process.env.ANTHROPIC_API_KEY ||
+          "",
+      },
     };
   },
 
@@ -91,6 +103,7 @@ export const configService = {
       notion: { ...current.notion, ...config.notion },
       scheduler: { ...current.scheduler, ...config.scheduler },
       server: { ...current.server, ...config.server },
+      anthropic: { ...(current.anthropic ?? {}), ...config.anthropic },
     };
     store.set("appConfig", merged);
     logger.info("App config saved to local vault");
@@ -117,5 +130,24 @@ export const configService = {
   isNotionConfigured(): boolean {
     const { apiKey, postsDbId, analyticsDbId } = this.get().notion;
     return !!(apiKey && postsDbId && analyticsDbId);
+  },
+
+  /**
+   * Returns the Anthropic API key (vault → env), or null if not set.
+   */
+  getAnthropicApiKey(): string | null {
+    return this.get().anthropic.apiKey || null;
+  },
+
+  /**
+   * Returns true if an Anthropic API key is configured.
+   */
+  isAnthropicConfigured(): boolean {
+    return !!this.getAnthropicApiKey();
+  },
+
+  clearAnthropicConfig(): void {
+    this.save({ anthropic: { apiKey: "" } });
+    logger.info("Anthropic config cleared from vault");
   },
 };

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@notionhq/client": "^2.2.15",
     "axios": "^1.6.7",
     "better-queue": "^3.8.12",

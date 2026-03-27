@@ -2,6 +2,8 @@ import { Router } from "express";
 import { publishToDevto } from "../publishers/devto.js";
 import { publishToHashnode } from "../publishers/hashnode.js";
 import { publishToMedium } from "../publishers/medium.js";
+import { adaptContentForPlatform } from "../services/aiService.js";
+import { configService } from "../services/configService.js";
 import { logger } from "../utils/logger.js";
 import type { PublishPayload, PublishResult } from "../publishers/types.js";
 
@@ -46,6 +48,8 @@ publishRouter.post("/", async (req, res) => {
     notionPageId: notion_page_id,
   });
 
+  const aiEnabled = configService.isAnthropicConfigured();
+
   // Publish to all requested platforms in parallel
   const results = await Promise.all(
     platforms.map(async (platform: string) => {
@@ -59,8 +63,29 @@ publishRouter.post("/", async (req, res) => {
         } as PublishResult;
       }
 
+      // Build per-platform payload with optional AI content adaptation
+      let platformPayload = { ...payload };
+
+      if (aiEnabled && ["devto", "hashnode", "medium"].includes(platform)) {
+        try {
+          const adapted = await adaptContentForPlatform(
+            payload.content_markdown,
+            platform as "devto" | "hashnode" | "medium",
+            { title: payload.title, tags: payload.tags }
+          );
+          if (platform === "medium") {
+            // For Medium, the adapted content is already HTML
+            platformPayload = { ...payload, content_html: adapted };
+          } else {
+            platformPayload = { ...payload, content_markdown: adapted };
+          }
+        } catch (err: any) {
+          logger.warn(`AI adaptation skipped for ${platform}`, { error: err.message });
+        }
+      }
+
       try {
-        return await publisher(payload);
+        return await publisher(platformPayload);
       } catch (err: any) {
         logger.error(`Publisher threw for ${platform}`, { error: err.message });
         return {

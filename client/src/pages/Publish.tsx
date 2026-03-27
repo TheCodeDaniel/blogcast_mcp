@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send, ChevronDown, Info } from "lucide-react";
-import { getPosts, publishPost as apiPublishPost } from "../lib/api";
+import { Send, ChevronDown, Info, Zap, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
+import {
+  getPosts,
+  getPost,
+  publishPost as apiPublishPost,
+  precheckPost,
+  enhancePost,
+} from "../lib/api";
 import { PublishProgress } from "../components/PublishProgress";
 import type { Post, PublishResult } from "../lib/types";
 
@@ -32,11 +38,24 @@ export function Publish() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  // AI state
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [checkingAI, setCheckingAI] = useState(false);
+  const [aiWarnings, setAiWarnings] = useState<string[] | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanced, setEnhanced] = useState<{ excerpt: string; tags: string[] } | null>(null);
+
   useEffect(() => {
     getPosts({ limit: 50 })
       .then((res) => setPosts(res.posts))
       .catch(() => {})
       .finally(() => setLoadingPosts(false));
+
+    // Check if Anthropic is configured
+    fetch("http://localhost:3001/api/config/status")
+      .then((r) => r.json())
+      .then((data) => setAiEnabled(!!data.anthropic))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -45,12 +64,59 @@ export function Publish() {
     }
   }, [preselectedPostId]);
 
+  // Reset AI state when post changes
+  useEffect(() => {
+    setAiWarnings(null);
+    setEnhanced(null);
+  }, [selectedPostId]);
+
   const selectedPost = posts.find((p) => p.id === selectedPostId);
 
   const togglePlatform = (id: string) => {
     setSelectedPlatforms((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
+  };
+
+  const handleRunAICheck = async () => {
+    if (!selectedPost) return;
+    setCheckingAI(true);
+    setAiWarnings(null);
+
+    try {
+      // Fetch full post content for the check
+      const fullPost = await getPost(selectedPost.id);
+      const content = `# ${fullPost.title}\n\n${fullPost.excerpt ?? ""}`;
+
+      const result = await precheckPost({
+        title: fullPost.title,
+        content,
+        tags: fullPost.tags,
+        excerpt: fullPost.excerpt ?? "",
+      });
+      setAiWarnings(result.warnings);
+    } catch {
+      setAiWarnings([]);
+    } finally {
+      setCheckingAI(false);
+    }
+  };
+
+  const handleEnhance = async () => {
+    if (!selectedPost) return;
+    setEnhancing(true);
+
+    try {
+      const fullPost = await getPost(selectedPost.id);
+      const content = `# ${fullPost.title}\n\n${fullPost.excerpt ?? ""}`;
+
+      const result = await enhancePost({ title: fullPost.title, content });
+      setEnhanced(result);
+    } catch {
+      // silently fail
+    } finally {
+      setEnhancing(false);
+    }
   };
 
   const handlePublish = async () => {
@@ -182,6 +248,88 @@ export function Publish() {
           LinkedIn, Ghost, and WordPress support is coming in v1.1.
         </div>
       </div>
+
+      {/* AI pre-publish check */}
+      {aiEnabled && selectedPost && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap size={15} className="text-brand-500" />
+              <h2 className="font-semibold text-gray-900">3. AI pre-publish check</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {!selectedPost.excerpt && (
+                <button
+                  onClick={handleEnhance}
+                  disabled={enhancing}
+                  className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Sparkles size={12} />
+                  {enhancing ? "Generating..." : "Generate excerpt & tags"}
+                </button>
+              )}
+              <button
+                onClick={handleRunAICheck}
+                disabled={checkingAI}
+                className="flex items-center gap-1.5 text-xs bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Zap size={12} />
+                {checkingAI ? "Checking..." : "Run AI check"}
+              </button>
+            </div>
+          </div>
+
+          {enhanced && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm space-y-2">
+              <p className="font-medium text-blue-800 text-xs uppercase tracking-wide">AI-generated suggestions</p>
+              {enhanced.excerpt && (
+                <div>
+                  <p className="text-xs text-blue-600 font-medium mb-0.5">Excerpt</p>
+                  <p className="text-blue-900 text-sm">{enhanced.excerpt}</p>
+                </div>
+              )}
+              {enhanced.tags.length > 0 && (
+                <div>
+                  <p className="text-xs text-blue-600 font-medium mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {enhanced.tags.map((tag) => (
+                      <span key={tag} className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-blue-500">Copy these into your Notion page to apply them.</p>
+            </div>
+          )}
+
+          {aiWarnings !== null && (
+            aiWarnings.length === 0 ? (
+              <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                <CheckCircle size={14} className="shrink-0" />
+                Looks good! No issues found.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-amber-700 text-sm font-medium">
+                  <AlertTriangle size={14} />
+                  {aiWarnings.length} issue{aiWarnings.length !== 1 ? "s" : ""} found
+                </div>
+                <ul className="space-y-1.5">
+                  {aiWarnings.map((warning, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <AlertTriangle size={13} className="shrink-0 mt-0.5 text-amber-500" />
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-400">You can still publish with warnings — they're just suggestions.</p>
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Publish button */}
       <button

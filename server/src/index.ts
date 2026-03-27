@@ -12,6 +12,7 @@ import { platformsRouter } from "./routes/platforms.js";
 import { imagesRouter } from "./routes/images.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { configRouter } from "./routes/config.js";
+import { aiRouter } from "./routes/ai.js";
 import { startScheduler } from "./services/schedulerService.js";
 import { configService } from "./services/configService.js";
 import { publishToDevto } from "./publishers/devto.js";
@@ -42,6 +43,7 @@ app.use(
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/config", configRouter);
+app.use("/api/ai", aiRouter);
 app.use("/api/posts", postsRouter);
 app.use("/api/publish", publishRouter);
 app.use("/api/platforms", platformsRouter);

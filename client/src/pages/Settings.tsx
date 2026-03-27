@@ -7,8 +7,16 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Zap,
+  Terminal,
 } from "lucide-react";
-import { getConfig, saveConfig, clearNotionConfig } from "../lib/api";
+import {
+  getConfig,
+  saveConfig,
+  clearNotionConfig,
+  clearAnthropicConfig,
+  configureClaudeDesktop,
+} from "../lib/api";
 import type { AppConfigResponse } from "../lib/api";
 
 interface FieldProps {
@@ -77,23 +85,35 @@ export function Settings() {
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Form state
+  // Form state — Notion
   const [notionApiKey, setNotionApiKey] = useState("");
   const [postsDbId, setPostsDbId] = useState("");
   const [analyticsDbId, setAnalyticsDbId] = useState("");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [pollInterval, setPollInterval] = useState(5);
 
+  // Form state — Anthropic
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [savingAnthropic, setSavingAnthropic] = useState(false);
+  const [anthropicStatus, setAnthropicStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [anthropicError, setAnthropicError] = useState("");
+
+  // Claude Desktop connection state
+  const [connectingDesktop, setConnectingDesktop] = useState(false);
+  const [desktopResult, setDesktopResult] = useState<{
+    message: string;
+    path?: string;
+    ok: boolean;
+  } | null>(null);
+
   useEffect(() => {
     getConfig()
       .then((cfg) => {
         setConfig(cfg);
-        // Pre-fill non-secret fields from saved config
         setPostsDbId(cfg.notion.postsDbId);
         setAnalyticsDbId(cfg.notion.analyticsDbId);
         setSchedulerEnabled(cfg.scheduler.enabled);
         setPollInterval(cfg.scheduler.pollIntervalMinutes);
-        // Don't pre-fill the API key (masked) — user must re-enter to change
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -107,7 +127,6 @@ export function Settings() {
     try {
       await saveConfig({
         notion: {
-          // Only send the API key if the user typed a new one
           ...(notionApiKey ? { apiKey: notionApiKey } : {}),
           postsDbId,
           analyticsDbId,
@@ -118,10 +137,9 @@ export function Settings() {
         },
       });
       setStatus("saved");
-      // Reload config to reflect masked state
       const updated = await getConfig();
       setConfig(updated);
-      setNotionApiKey(""); // clear after save
+      setNotionApiKey("");
     } catch (err: any) {
       setStatus("error");
       setErrorMsg(err.response?.data?.error ?? err.message ?? "Failed to save");
@@ -140,7 +158,52 @@ export function Settings() {
     setAnalyticsDbId("");
   };
 
+  const handleSaveAnthropic = async () => {
+    if (!anthropicApiKey.trim()) return;
+    setSavingAnthropic(true);
+    setAnthropicStatus("idle");
+    setAnthropicError("");
+
+    try {
+      await saveConfig({ anthropic: { apiKey: anthropicApiKey } });
+      setAnthropicStatus("saved");
+      const updated = await getConfig();
+      setConfig(updated);
+      setAnthropicApiKey("");
+    } catch (err: any) {
+      setAnthropicStatus("error");
+      setAnthropicError(err.response?.data?.error ?? err.message ?? "Failed to save");
+    } finally {
+      setSavingAnthropic(false);
+    }
+  };
+
+  const handleClearAnthropic = async () => {
+    if (!confirm("Clear your Anthropic API key?")) return;
+    await clearAnthropicConfig();
+    const updated = await getConfig();
+    setConfig(updated);
+    setAnthropicApiKey("");
+    setAnthropicStatus("idle");
+  };
+
+  const handleConnectDesktop = async () => {
+    setConnectingDesktop(true);
+    setDesktopResult(null);
+
+    try {
+      const result = await configureClaudeDesktop();
+      setDesktopResult({ message: result.message, path: result.path, ok: true });
+    } catch (err: any) {
+      const msg = err.response?.data?.error ?? err.message ?? "Failed to configure Claude Desktop";
+      setDesktopResult({ message: msg, ok: false });
+    } finally {
+      setConnectingDesktop(false);
+    }
+  };
+
   const isConfigured = config?.configured ?? false;
+  const isAnthropicConfigured = config?.anthropicConfigured ?? false;
 
   if (loading) {
     return (
@@ -288,37 +351,133 @@ export function Settings() {
         )}
       </div>
 
-      {/* Claude Desktop snippet */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-900">Claude Desktop MCP Config</h2>
+      {/* AI features */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-brand-500" />
+            <h2 className="font-semibold text-gray-900">AI Features</h2>
+          </div>
+          {isAnthropicConfigured && (
+            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+              <CheckCircle size={11} />
+              Connected
+            </span>
+          )}
+        </div>
+
         <p className="text-sm text-gray-500">
-          Add this to your{" "}
-          <code className="bg-gray-100 px-1 rounded text-xs">
-            claude_desktop_config.json
-          </code>{" "}
-          after building the MCP server with{" "}
-          <code className="bg-gray-100 px-1 rounded text-xs">
-            npm run build:mcp
-          </code>
-          :
+          Power smart pre-publish checks, auto-generated excerpts &amp; tags, and
+          per-platform content adaptation. Uses the Anthropic API — your key is
+          stored encrypted on your machine.
         </p>
 
-        <pre className="bg-gray-900 text-green-400 rounded-lg p-4 text-xs overflow-x-auto leading-relaxed">
-{`{
-  "mcpServers": {
-    "blogcast": {
-      "command": "node",
-      "args": ["/path/to/blogcast/mcp/dist/index.js"],
-      "env": {
-        "BACKEND_URL": "http://localhost:3001"
-      }
-    }
-  }
-}`}
-        </pre>
+        <Field
+          label="Anthropic API Key"
+          value={anthropicApiKey}
+          onChange={setAnthropicApiKey}
+          placeholder={
+            config?.anthropic?.apiKey
+              ? `Currently: ${config.anthropic.apiKey} — type to replace`
+              : "sk-ant-xxxxxxxxxxxxxxxxxxxx"
+          }
+          secret
+          fromEnv={config?.anthropic?.fromEnv}
+          hint="From console.anthropic.com → API Keys"
+        />
+
+        <div className="flex items-center justify-between">
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+          >
+            <ExternalLink size={11} />
+            Get your API key
+          </a>
+          <div className="flex items-center gap-3">
+            {isAnthropicConfigured && (
+              <button
+                onClick={handleClearAnthropic}
+                className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1"
+              >
+                <Trash2 size={11} />
+                Clear key
+              </button>
+            )}
+            <button
+              onClick={handleSaveAnthropic}
+              disabled={savingAnthropic || !anthropicApiKey.trim()}
+              className="flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            >
+              <Save size={12} />
+              {savingAnthropic ? "Saving..." : "Save key"}
+            </button>
+          </div>
+        </div>
+
+        {anthropicStatus === "saved" && (
+          <p className="flex items-center gap-1.5 text-sm text-green-600">
+            <CheckCircle size={13} />
+            Anthropic API key saved.
+          </p>
+        )}
+        {anthropicStatus === "error" && (
+          <p className="flex items-center gap-1.5 text-sm text-red-600">
+            <AlertCircle size={13} />
+            {anthropicError}
+          </p>
+        )}
+      </div>
+
+      {/* Claude Desktop auto-config */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Terminal size={16} className="text-gray-600" />
+          <h2 className="font-semibold text-gray-900">Claude Desktop</h2>
+        </div>
+
+        <p className="text-sm text-gray-500">
+          Automatically add BlogCast to your Claude Desktop MCP config. Requires
+          the MCP server to be built first:{" "}
+          <code className="bg-gray-100 px-1 rounded text-xs">npm run build:mcp</code>
+        </p>
+
+        <button
+          onClick={handleConnectDesktop}
+          disabled={connectingDesktop}
+          className="flex items-center gap-2 border border-gray-200 hover:border-brand-400 hover:text-brand-600 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          <Terminal size={14} />
+          {connectingDesktop ? "Connecting..." : "Connect Claude Desktop"}
+        </button>
+
+        {desktopResult && (
+          <div
+            className={`flex items-start gap-2 rounded-lg p-3 text-sm ${
+              desktopResult.ok
+                ? "bg-green-50 border border-green-200 text-green-700"
+                : "bg-red-50 border border-red-200 text-red-700"
+            }`}
+          >
+            {desktopResult.ok ? (
+              <CheckCircle size={14} className="shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p>{desktopResult.message}</p>
+              {desktopResult.path && (
+                <p className="text-xs mt-0.5 opacity-70">{desktopResult.path}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-gray-400">
           The MCP server fetches Notion credentials from the backend at runtime
-          — no need to put them in this config.
+          — no need to put them in the Claude Desktop config.
         </p>
       </div>
 

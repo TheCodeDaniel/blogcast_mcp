@@ -40,13 +40,16 @@ export async function publishToMedium(
     const result = await withRetry(async () => {
       const user = await getMediumUser(creds.integration_token);
 
-      // Process images — Medium accepts external image URLs in HTML
-      const { urlMap } = await imageService.processMarkdownImages(
-        payload.content_markdown
-      );
-
-      // Medium only accepts HTML or Markdown; HTML gives better control
-      const html = formatService.formatAsHtml(payload.content_markdown, urlMap);
+      // Use AI-adapted HTML if provided, otherwise convert Markdown → HTML
+      let html: string;
+      if (payload.content_html) {
+        html = payload.content_html;
+      } else {
+        const { urlMap } = await imageService.processMarkdownImages(
+          payload.content_markdown
+        );
+        html = formatService.formatAsHtml(payload.content_markdown, urlMap);
+      }
 
       const body: Record<string, any> = {
         title: payload.title,

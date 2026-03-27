@@ -17,7 +17,9 @@ export interface AppConfigResponse {
   };
   scheduler: { enabled: boolean; pollIntervalMinutes: number };
   server: { storagePathOverride: string };
+  anthropic: { apiKey: string; fromEnv: boolean };
   configured: boolean;
+  anthropicConfigured: boolean;
 }
 
 export async function getConfig(): Promise<AppConfigResponse> {
@@ -29,12 +31,47 @@ export async function saveConfig(config: {
   notion?: { apiKey?: string; postsDbId?: string; analyticsDbId?: string };
   scheduler?: { enabled?: boolean; pollIntervalMinutes?: number };
   server?: { storagePathOverride?: string };
+  anthropic?: { apiKey?: string };
 }): Promise<void> {
   await api.post("/api/config", config);
 }
 
 export async function clearNotionConfig(): Promise<void> {
   await api.delete("/api/config/notion");
+}
+
+export async function clearAnthropicConfig(): Promise<void> {
+  await api.delete("/api/config/anthropic");
+}
+
+export async function configureClaudeDesktop(): Promise<{
+  success: boolean;
+  path: string;
+  alreadyExisted: boolean;
+  message: string;
+}> {
+  const res = await api.post("/api/config/claude-desktop");
+  return res.data;
+}
+
+// ── AI ────────────────────────────────────────────────────────────────────────
+
+export async function precheckPost(data: {
+  title: string;
+  content: string;
+  tags: string[];
+  excerpt: string;
+}): Promise<{ warnings: string[] }> {
+  const res = await api.post("/api/ai/precheck", data);
+  return res.data;
+}
+
+export async function enhancePost(data: {
+  title: string;
+  content: string;
+}): Promise<{ excerpt: string; tags: string[] }> {
+  const res = await api.post("/api/ai/enhance", data);
+  return res.data;
 }
 
 // ── Posts ─────────────────────────────────────────────────────────────────────
