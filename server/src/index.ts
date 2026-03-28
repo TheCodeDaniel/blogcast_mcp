@@ -13,6 +13,8 @@ import { imagesRouter } from "./routes/images.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { configRouter } from "./routes/config.js";
 import { aiRouter } from "./routes/ai.js";
+import { setupRouter } from "./routes/setup.js";
+import { setupNotionDatabases } from "./services/notionSetupService.js";
 import { startScheduler } from "./services/schedulerService.js";
 import { configService } from "./services/configService.js";
 import { publishToDevto } from "./publishers/devto.js";
@@ -44,6 +46,7 @@ app.use(
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/config", configRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/setup", setupRouter);
 app.use("/api/posts", postsRouter);
 app.use("/api/publish", publishRouter);
 app.use("/api/platforms", platformsRouter);
@@ -135,13 +138,23 @@ async function schedulerPublish(notionPageId: string, platforms: string[]) {
 app.listen(PORT, () => {
   logger.info(`BlogCast server running on http://localhost:${PORT}`);
 
-  // Start scheduler if enabled and Notion is configured
   const cfg = configService.get();
-  if (cfg.scheduler.enabled && configService.isNotionConfigured()) {
-    startScheduler(cfg.scheduler.pollIntervalMinutes, schedulerPublish);
-  } else if (!configService.isNotionConfigured()) {
+
+  if (configService.isNotionConfigured()) {
+    // Run DB migration on startup (non-blocking, idempotent)
+    setupNotionDatabases()
+      .then(() => logger.info("Notion DB schema verified."))
+      .catch((err) =>
+        logger.warn(`Notion DB auto-setup skipped: ${err.message}`)
+      );
+
+    // Start scheduler if enabled
+    if (cfg.scheduler.enabled) {
+      startScheduler(cfg.scheduler.pollIntervalMinutes, schedulerPublish);
+    }
+  } else {
     logger.warn(
-      "Scheduler disabled: Notion not configured. Open the dashboard Settings page to add your credentials."
+      "Notion not configured. Open the dashboard Settings page to add your credentials."
     );
   }
 });

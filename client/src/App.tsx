@@ -6,15 +6,18 @@ import {
   Globe,
   Settings as SettingsIcon,
   Radio,
+  PenLine,
 } from "lucide-react";
 import { Dashboard } from "./pages/Dashboard";
 import { Posts } from "./pages/Posts";
 import { Publish } from "./pages/Publish";
 import { Platforms } from "./pages/Platforms";
 import { Settings } from "./pages/Settings";
+import { WritePost } from "./pages/WritePost";
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/write", icon: PenLine, label: "Write" },
   { to: "/posts", icon: FileText, label: "Posts" },
   { to: "/publish", icon: Send, label: "Publish" },
   { to: "/platforms", icon: Globe, label: "Platforms" },
@@ -97,6 +100,7 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/write" element={<WritePost />} />
           <Route path="/posts" element={<Posts />} />
           <Route path="/publish" element={<Publish />} />
           <Route path="/platforms" element={<Platforms />} />

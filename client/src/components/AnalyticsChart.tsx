@@ -20,10 +20,17 @@ interface AnalyticsChartProps {
 }
 
 export function AnalyticsChart({ data }: AnalyticsChartProps) {
-  if (data.length === 0) {
+  const hasData =
+    data.length > 0 &&
+    data.some((d) => d.views > 0 || d.reactions > 0 || d.comments > 0);
+
+  if (!hasData) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
-        No analytics data yet. Publish your first post to see stats here.
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm gap-2">
+        <p>No analytics data yet.</p>
+        <p className="text-xs text-center">
+          Publish a post, then use <span className="font-mono bg-gray-100 px-1 rounded">sync_analytics</span> via Claude or the Posts page to pull in stats.
+        </p>
       </div>
     );
   }

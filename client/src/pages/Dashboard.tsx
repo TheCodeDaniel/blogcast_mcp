@@ -199,15 +199,24 @@ export function Dashboard() {
                   </span>
                 </li>
               </ol>
-              <a
-                href="https://www.notion.so/templates"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline font-medium mt-2"
-              >
-                <ExternalLink size={13} />
-                Open Notion
-              </a>
+              <div className="flex items-center gap-3 mt-2">
+                <Link
+                  to="/write"
+                  className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline font-medium"
+                >
+                  Write in the app →
+                </Link>
+                <span className="text-gray-300">or</span>
+                <a
+                  href="https://www.notion.so"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 font-medium"
+                >
+                  <ExternalLink size={13} />
+                  Open Notion
+                </a>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -234,15 +243,13 @@ export function Dashboard() {
                 </Link>
               ))}
               <div className="pt-3 border-t border-gray-100">
-                <a
-                  href="https://www.notion.so"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to="/write"
                   className="text-xs text-gray-400 hover:text-brand-600 flex items-center gap-1"
                 >
                   <ExternalLink size={11} />
-                  Write a new post in Notion
-                </a>
+                  Write a new post
+                </Link>
               </div>
             </div>
           )}

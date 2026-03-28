@@ -100,14 +100,20 @@ export async function getPostStatus(
 
 export async function publishPost(
   postId: string,
-  platforms: string[]
+  platforms: string[],
+  contentMarkdown?: string  // pass pre-loaded content to skip re-fetching from Notion
 ): Promise<{ results: PublishResult[] }> {
-  const post = await getPost(postId);
+  const [post, contentRes] = await Promise.all([
+    getPost(postId),
+    contentMarkdown !== undefined
+      ? Promise.resolve({ markdown: contentMarkdown })
+      : getPostContent(postId),
+  ]);
 
   const res = await api.post("/api/publish", {
     post: {
       title: post.title,
-      content_markdown: `# ${post.title}\n\n*(Content loaded from Notion)*`,
+      content_markdown: contentRes.markdown,
       tags: post.tags,
       canonical_url: null,
       cover_image_url: null,
@@ -117,6 +123,34 @@ export async function publishPost(
     platforms,
     notion_page_id: postId,
   });
+  return res.data;
+}
+
+export async function getPostContent(id: string): Promise<{ markdown: string }> {
+  const res = await api.get(`/api/posts/${id}/content`);
+  return res.data;
+}
+
+export async function createPost(data: {
+  title: string;
+  content_markdown: string;
+  tags: string[];
+  excerpt: string;
+  slug?: string;
+  status: "Draft" | "Review";
+  publishTo: string[];
+  canonicalUrl?: string;
+}): Promise<{ id: string; post: Post }> {
+  const res = await api.post("/api/posts", data);
+  return res.data;
+}
+
+export async function setupNotion(): Promise<{
+  success: boolean;
+  postsDbId: string;
+  analyticsDbId: string;
+}> {
+  const res = await api.post("/api/setup/notion");
   return res.data;
 }
 

@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { Client } from "@notionhq/client";
+import { NotionToMarkdown } from "notion-to-md";
+import { markdownToBlocks } from "@tryfabric/martian";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { configService } from "../services/configService.js";
 import { logger } from "../utils/logger.js";
@@ -33,9 +35,12 @@ function mapPage(page: PageObjectResponse) {
       ? prop.title?.map((t: any) => t.plain_text).join("") ?? ""
       : prop?.rich_text?.map((t: any) => t.plain_text).join("") ?? "";
 
+  // Find the title property by type — resilient to any column name
+  const titleProp = Object.values(props).find((p: any) => p?.type === "title");
+
   return {
     id: page.id,
-    title: getText(props["Title"]),
+    title: getText(titleProp ?? props["Title"] ?? props["Name"]),
     slug: getText(props["Slug"]),
     status: props["Status"]?.select?.name ?? "Draft",
     publishTo: props["Publish To"]?.multi_select?.map((s: any) => s.name) ?? [],
@@ -93,6 +98,115 @@ postsRouter.get("/:id", async (req, res) => {
   } catch (err: any) {
     logger.error("GET /api/posts/:id failed", { error: err.message });
     res.status(404).json({ error: err.message });
+  }
+});
+
+// GET /api/posts/:id/content — return full Markdown content of a post
+postsRouter.get("/:id/content", async (req, res) => {
+  try {
+    const notion = getNotionClient();
+    const n2m = new NotionToMarkdown({ notionClient: notion });
+    const mdBlocks = await n2m.pageToMarkdown(req.params.id);
+    const { parent: markdown } = n2m.toMarkdownString(mdBlocks);
+    res.json({ markdown: markdown ?? "" });
+  } catch (err: any) {
+    logger.error("GET /api/posts/:id/content failed", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/posts — create a new post in Notion from the in-app editor
+postsRouter.post("/", async (req, res) => {
+  const {
+    title,
+    content_markdown,
+    tags = [],
+    excerpt = "",
+    slug: slugInput,
+    status = "Draft",
+    publishTo = [],
+    canonicalUrl,
+  } = req.body;
+
+  if (!title?.trim()) {
+    res.status(400).json({ error: "title is required" });
+    return;
+  }
+
+  if (!content_markdown?.trim()) {
+    res.status(400).json({ error: "content_markdown is required" });
+    return;
+  }
+
+  // Auto-generate slug from title if not provided
+  const slug =
+    slugInput?.trim() ||
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 100);
+
+  // Word count
+  const wordCount = content_markdown
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/[#*`~>\-_]/g, "")
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+  try {
+    const notion = getNotionClient();
+    const postsDbId = getPostsDbId();
+
+    // Find the actual name of the title property (may be "Name", "Title", etc.)
+    const db = await notion.databases.retrieve({ database_id: postsDbId });
+    const titlePropName =
+      Object.entries(db.properties).find(([, p]) => p.type === "title")?.[0] ?? "Title";
+
+    // Create Notion page with properties
+    const page = await notion.pages.create({
+      parent: { database_id: postsDbId },
+      properties: {
+        [titlePropName]: { title: [{ text: { content: title } }] },
+        Slug: { rich_text: [{ text: { content: slug } }] },
+        Status: { select: { name: status } },
+        Excerpt: excerpt
+          ? { rich_text: [{ text: { content: excerpt.slice(0, 2000) } }] }
+          : { rich_text: [] },
+        Tags: {
+          multi_select: tags.map((t: string) => ({ name: t.trim() })),
+        },
+        "Publish To": {
+          multi_select: publishTo.map((p: string) => ({ name: p })),
+        },
+        "Word Count": { number: wordCount },
+        ...(canonicalUrl ? { "Canonical URL": { url: canonicalUrl } } : {}),
+      },
+    });
+
+    // Append content blocks (Markdown → Notion blocks via @tryfabric/martian)
+    if (content_markdown.trim()) {
+      const blocks = markdownToBlocks(content_markdown);
+      // Notion API allows max 100 blocks per request
+      const CHUNK = 100;
+      for (let i = 0; i < blocks.length; i += CHUNK) {
+        await notion.blocks.children.append({
+          block_id: page.id,
+          children: blocks.slice(i, i + CHUNK) as any,
+        });
+      }
+    }
+
+    const fullPage = await notion.pages.retrieve({ page_id: page.id });
+    const mapped = mapPage(fullPage as PageObjectResponse);
+
+    logger.info(`Created post in Notion: "${title}" (${page.id})`);
+    res.status(201).json({ id: page.id, post: mapped });
+  } catch (err: any) {
+    logger.error("POST /api/posts failed", { error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
